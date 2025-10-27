@@ -146,6 +146,7 @@ INSTALLED_APPS = [
     "markdownx",
     "web",
     "web.virtual_lab.apps.VirtualLabConfig",
+    "ai",  # AI Learning Assistant
 ]
 
 if DEBUG and not TESTING:

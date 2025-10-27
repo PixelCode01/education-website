@@ -56,6 +56,7 @@ if settings.DEBUG:
 # Add all language-prefixed URLs
 urlpatterns += i18n_patterns(
     path("", views.index, name="index"),
+    path("ai/", include("ai.urls")),  # AI Learning Assistant
     path("ref/<str:code>/", views.handle_referral, name="handle_referral"),  # New referral URL format
     path("create-test-data/", views.run_create_test_data, name="create_test_data"),
     path("learn/", views.learn, name="learn"),

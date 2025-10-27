@@ -1,18 +1,20 @@
-from django.shortcuts import render, redirect
-from django.http import JsonResponse
-from django.contrib.auth.decorators import login_required
-from django.views.decorators.http import require_POST
 import json
-import random
 import logging
+import random
 
-from .models import Interaction, StudentProfile, ChatSession, Message
+from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
+from django.shortcuts import render
+from django.views.decorators.http import require_POST
+
+from .models import ChatSession, Interaction, Message, StudentProfile
 
 logger = logging.getLogger(__name__)
 
 # Try to import the AI provider, with fallback
 try:
     from .services.ai_provider import get_ai_provider
+
     AI_PROVIDER_AVAILABLE = True
 except ImportError:
     logger.warning("AI provider module not available, using built-in demo responses")
@@ -22,32 +24,32 @@ except ImportError:
 def chat_view(request):
     """Render the AI chat interface."""
     # Get recent interactions for this user
-    recent_interactions = Interaction.objects.filter(user=request.user).order_by('-created_at')[:5]
-    
+    recent_interactions = Interaction.objects.filter(user=request.user).order_by("-created_at")[:5]
+
     # Get or create student profile
     profile, created = StudentProfile.objects.get_or_create(user=request.user)
-    
+
     # Get recent chat sessions for sidebar
-    chat_sessions = ChatSession.objects.filter(user=request.user).order_by('-updated_at')[:10]
-    
+    chat_sessions = ChatSession.objects.filter(user=request.user).order_by("-updated_at")[:10]
+
     subjects = [
-        {'value': 'general', 'label': 'General'},
-        {'value': 'mathematics', 'label': 'Mathematics'}, 
-        {'value': 'science', 'label': 'Science'},
-        {'value': 'programming', 'label': 'Programming'}, 
-        {'value': 'history', 'label': 'History'},
-        {'value': 'languages', 'label': 'Languages'}
+        {"value": "general", "label": "General"},
+        {"value": "mathematics", "label": "Mathematics"},
+        {"value": "science", "label": "Science"},
+        {"value": "programming", "label": "Programming"},
+        {"value": "history", "label": "History"},
+        {"value": "languages", "label": "Languages"},
     ]
-    
+
     context = {
-        'recent_interactions': recent_interactions,
-        'profile': profile,
-        'subjects': subjects,
-        'page_title': 'AI Learning Assistant',
-        'chat_sessions': chat_sessions
+        "recent_interactions": recent_interactions,
+        "profile": profile,
+        "subjects": subjects,
+        "page_title": "AI Learning Assistant",
+        "chat_sessions": chat_sessions,
     }
-    
-    return render(request, 'ai/chat.html', context)
+
+    return render(request, "ai/chat.html", context)
 
 @login_required
 @require_POST
@@ -55,63 +57,54 @@ def chat_completion(request):
     """API endpoint for AI chat interactions."""
     try:
         data = json.loads(request.body)
-        message = data.get('message', '')
-        subject = data.get('subject', 'general')
-        
+        message = data.get("message", "")
+        subject = data.get("subject", "general")
+
         # Extract response preferences
-        preferences = data.get('preferences', {})
-        response_format = preferences.get('responseFormat', 'paragraph')
-        response_length = preferences.get('responseLength', 'detailed')
-        response_style = preferences.get('responseStyle', 'formal')
-        
+        preferences = data.get("preferences", {})
+        response_format = preferences.get("responseFormat", "paragraph")
+        response_length = preferences.get("responseLength", "detailed")
+        response_style = preferences.get("responseStyle", "formal")
+
         logger.info(f"Received chat request: subject={subject}, message={message[:50]}...")
-        logger.info(f"Response preferences: format={response_format}, length={response_length}, style={response_style}")
-        
+        logger.info(
+            f"Response preferences: format={response_format}, length={response_length}, style={response_style}"
+        )
+
         # Save the user's question to the database
         interaction = Interaction.objects.create(
             user=request.user,
             question=message,
             subject=subject,
-            ai_provider='demo' if not AI_PROVIDER_AVAILABLE else 'ai'
+            ai_provider="demo" if not AI_PROVIDER_AVAILABLE else "ai",
         )
-        
+
         # Get AI response with preferences
         response_text = get_ai_response(
-            message, 
+            message,
             subject,
             request.user,
             response_format=response_format,
             response_length=response_length,
-            response_style=response_style
+            response_style=response_style,
         )
-        
+
         logger.info(f"Generated response: {response_text[:50]}...")
-        
+
         # Update the interaction with the response
         interaction.answer = response_text
         interaction.save()
-        
-        return JsonResponse({
-            'success': True,
-            'response': {
-                'text': response_text,
-                'provider': interaction.ai_provider,
-                'interaction_id': interaction.id
-            }
-        })
-        
+
+        return JsonResponse(
+            {"success": True, "response": {"text": response_text, "provider": interaction.ai_provider, "interaction_id": interaction.id}}
+        )
+
     except json.JSONDecodeError:
         logger.error("Invalid JSON in request body")
-        return JsonResponse({
-            'success': False,
-            'error': "Invalid JSON in request body"
-        }, status=400)
+        return JsonResponse({"success": False, "error": "Invalid JSON in request body"}, status=400)
     except Exception as e:
         logger.error(f"Error in chat_completion: {str(e)}")
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=500)
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
 
 def get_ai_response(message, subject, user, response_format='paragraph', response_length='detailed', response_style='formal'):
     """Generate AI response using the configured provider or fallback to demo."""
